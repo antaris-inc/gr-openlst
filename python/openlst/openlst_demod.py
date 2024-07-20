@@ -72,38 +72,59 @@ class openlst_demod(gr.sync_block):
         self._socket = None
 
         self._buff = []
-        self._mode = 'preamble'
+        self._mode = 'search'
         self._length = 0
         self._sync_bits = len(self.sync_word) * 8
 
     def work(self, input_items, output_items):
+        # Each input byte is actually one LSB-encoded bit
         self._buff.extend(input_items[0])
-        # Waiting for preamble - check if we see the preamble sequence
-        # with enough matching bytes
-        if self._mode == 'preamble':
+
+        # Work through as much of the buffer as possible, stopping
+        # when it is clear no forward progress is being made
+        while True:
+            startN = len(self._buff)
+            self.loop()
+            endN = len(self._buff)
+            if startN == endN:
+                break
+
+        return len(input_items[0])
+
+    def loop(self):
+        # Search through buffer until viable preamble and full sync pattern is found
+        if self._mode == 'search':
+            # first check for preamble
             while len(self._buff) >= len(self.preamble):
+                # identify number of preamble bits that match expected pattern
                 matched = sum(ex == ac for ex, ac in zip(self.preamble, self._buff))
+
+                # indicates a preamble match of required quality or better
                 if self._buff[0] == 1 and matched >= self.preamble_quality:
-                    self._mode = 'syncword'
                     break
+
+                # continue searching through buffer
                 else:
                     self._buff.pop(0)
-        # Waiting for the sync word(s), check for an exact match
-        elif self._mode == 'syncword':
-            buff = self._buff[len(self.preamble):]
-            if len(buff) >= self._sync_bits:
+
+            # reaching this point means we have matched enough of a preamble to check for sync words
+
+            syncbuff = self._buff[len(self.preamble):]
+            if len(syncbuff) >= self._sync_bits:
                 sw = bytes([
-                    bitcast(buff[i:i + 8]) for i in range(0, self._sync_bits, 8)
+                    bitcast(syncbuff[i:i + 8]) for i in range(0, self._sync_bits, 8)
                 ])
                 if sw == self.sync_word:
                     if self.fec:
                         self._mode = 'lengthfec'
                     else:
                         self._mode = 'length'
-                    self._buff = buff[self._sync_bits:]
+                    self._buff = syncbuff[self._sync_bits:]
+
+                # no direct match, so will retrigger search process
                 else:
                     self._buff.pop(0)
-                    self._mode = 'preamble'
+
         # Wait for the length byte (potentially whitened)
         elif self._mode == 'length':
             if len(self._buff) >= 8:
@@ -114,6 +135,7 @@ class openlst_demod(gr.sync_block):
                 self._length = length_byte
                 self._mode = 'data'
                 self._buff = self._buff[8:]
+
         # Wait for two chunks of FECed content to decode the length byte
         elif self._mode == 'lengthfec':
             if len(self._buff) >= 64:
@@ -147,6 +169,7 @@ class openlst_demod(gr.sync_block):
                 self._fecbuff = b[1:]
                 self._mode = 'datafec'
                 self._buff = self._buff[64:]
+
         elif self._mode == 'data':
             # In non-FEC mode we just decode one byte at a time
             if len(self._buff) >= self._length * 8:
@@ -164,8 +187,9 @@ class openlst_demod(gr.sync_block):
 
                 # All done - save any extra bits in the buffer and start looking
                 # for a new packet
-                self._mode = 'preamble'
+                self._mode = 'search'
                 self._buff = self._buff[self._length * 8:]
+
         elif self._mode == 'datafec':
             # In FEC mode we wait for FEC chunks (4 bytes) and decode them as
             # they arrive until we have enough bytes
@@ -192,8 +216,7 @@ class openlst_demod(gr.sync_block):
                 else:
                     if flags & self.flags_mask == self.flags:
                         self.send(pkt)
-                self._mode = 'preamble'
-        return len(input_items[0])
+                self._mode = 'search'
 
     def send(self, pkt: bytes):
         pkt_pmt = pmt.init_u8vector(len(pkt), list(pkt))
