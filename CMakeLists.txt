@@ -108,7 +108,7 @@ add_custom_target(uninstall
 # Add subdirectories
 ########################################################################
 add_subdirectory(include/gnuradio/openlst)
-add_subdirectory(lib)
+#add_subdirectory(lib)
 add_subdirectory(apps)
 # NOTE: manually update below to use GRC to generate C++ flowgraphs w/o python
 if(ENABLE_PYTHON)
