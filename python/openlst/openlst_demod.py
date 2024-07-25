@@ -10,6 +10,8 @@ import pmt
 import numpy as np
 from gnuradio import gr
 
+from libopenlst import frame
+
 from .fec import decode_fec_chunk
 from .whitening import pn9, whiten
 from .crc import crc16
@@ -176,12 +178,12 @@ class openlst_demod(gr.sync_block):
                 if self.whitening:
                     data = whiten(data, self._pngen)
                 try:
-                    pkt, flags = reformat_from_rf(data)
+                    cf, flags = parse_client_frame(data)
                 except CRCError as c:
                     pass
                 else:
                     if flags & self.flags_mask == self.flags:
-                        self.send(pkt)
+                        self.send(cf)
 
                 # All done - save any extra bits in the buffer and start looking
                 # for a new packet
@@ -208,15 +210,16 @@ class openlst_demod(gr.sync_block):
                 # Full packet is here
                 data = self._fecbuff[:self._length]
                 try:
-                    pkt, flags = reformat_from_rf(data)
+                    cf, flags = parse_client_frame(data)
                 except CRCError as c:
                     pass
                 else:
                     if flags & self.flags_mask == self.flags:
-                        self.send(pkt)
+                        self.send(cf)
                 self._mode = 'search'
 
-    def send(self, pkt: bytes):
+    def send(self, frm: frame.ClientFrame):
+        pkt = frm.to_bytearray()
         pkt_pmt = pmt.init_u8vector(len(pkt), list(pkt))
         self.message_port_pub(pmt.intern('message'), pkt_pmt)
 
@@ -230,18 +233,25 @@ class CRCError(Exception):
         return f"CRCError: Expected {self.expected:04x} got {self.actual:04x}"
 
 
-def reformat_from_rf(raw):
-    """reframe the packet from RF format to serial format"""
-    flags = raw[0]
-    seqnum = raw[1:3]
-    packet = raw[3:len(raw) - 4]
-    hwid = raw[len(raw) - 4:len(raw) - 2]
-    msg = hwid + seqnum + packet
-    checksum = int.from_bytes(raw[len(raw) - 2:], byteorder='little')
-    expected = crc16(bytes([len(raw)]) + raw[:-2])
-    if checksum != expected:
-        raise CRCError(expected, checksum)
-    return msg, flags
+def parse_client_frame(raw: bytes):
+    """Convert an OpenLST space frame (sans length field) to a client frame"""
+    want_checksum = crc16(bytes([len(raw)]) + raw[:-2])
+
+    buf = bytearray(raw)
+    flags, buf = buf[0], buf[1:]
+
+    cf = frame.ClientFrame()
+    cf.sequence_number = frame.pop_short(buf)
+    cf.destination = frame.pop_short(buf)
+    cf.command_number = frame.pop_uchar(buf)
+    cf.message, buf = buf[:len(buf) - 4], buf[-4:]
+    cf.hardware_id = frame.pop_short(buf)
+
+    got_checksum = frame.pop_short(buf)
+    if got_checksum != want_checksum:
+        raise CRCError(want_checksum, got_checksum)
+
+    return cf, flags
 
 def bitcast(bitlist):
     """convert a list of bits to a byte/bytes"""

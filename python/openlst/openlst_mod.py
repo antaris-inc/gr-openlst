@@ -11,6 +11,8 @@ import time
 import numpy as np
 from gnuradio import gr
 
+from libopenlst import frame
+
 from .fec import encode_fec
 from .whitening import whiten
 from .crc import crc16
@@ -82,20 +84,27 @@ class openlst_mod(gr.sync_block):
 
     def handle_msg(self, msg):
         raw = bytearray(pmt.to_python(msg))
+        cf = frame.ClientFrame.from_bytearray(raw)
 
         # Insert the preamble and sync words
         preamble = bytearray(
             [0xaa] * self.preamble_bytes +  # preamble
             [self.sync_byte1, self.sync_byte0] * self.sync_words)  # sync word(s)
 
-        # Prefix with length byte and flags
-        content = bytes(
-            [len(raw) + 3] +  # length = raw + flags + checksum (2 bytes)
-            [self.flags]  # flags
+        # header
+        content = bytearray(
+            [len(cf.message) + 10] + # header len + data len + footer len
+            [self.flags]
         )
-        content += raw[2:]  # data (includes seqnum)
-        # The HWID goes at the end for RF transmission
-        content += raw[0:2]
+        frame.append_short(content, cf.sequence_number)
+        frame.append_short(content, cf.destination)
+        frame.append_uchar(content, cf.command_number)
+
+        # data
+        content += cf.message
+
+        # footer
+        frame.append_short(content, cf.hardware_id)
         checksum = crc16(content)
 
         # Append checksum
