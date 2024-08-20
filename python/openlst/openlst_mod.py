@@ -97,7 +97,7 @@ class openlst_mod(gr.sync_block):
             [self.flags]
         )
         frame.append_short(content, cf.sequence_number)
-        frame.append_short(content, cf.destination)
+        frame.append_uchar(content, cf.destination)
         frame.append_uchar(content, cf.command_number)
 
         # data
