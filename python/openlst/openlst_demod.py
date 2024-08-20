@@ -244,7 +244,7 @@ def parse_client_frame(raw: bytes):
 
     cf = frame.ClientFrame()
     cf.sequence_number = frame.pop_short(buf)
-    cf.destination = frame.pop_short(buf)
+    cf.destination = frame.pop_uchar(buf)
     cf.command_number = frame.pop_uchar(buf)
     cf.message, buf = buf[:len(buf) - 4], buf[-4:]
     cf.hardware_id = frame.pop_short(buf)
