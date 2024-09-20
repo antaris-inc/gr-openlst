@@ -26,15 +26,6 @@ GNURadio modules rely heavily on CMake, even for pure Python implementations lik
 
 I believe build tools like clang/llvm and make are sufficient on a baseline macOS install, but you may need to install gcc.
 
-PyZMQ is also required. I think this is included as part of GNURadio, but it may need to be installed with:
-
-    pip install --global pyzmq
-
-or
-
-    sudo pip install pyzmq
-
-
 ## Installing this module
 
 The best way to install this (well, the only way I've tried) is with cmake:

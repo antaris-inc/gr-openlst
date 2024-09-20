@@ -8,7 +8,5 @@
 
 install(FILES
     openlst_openlst_mod.block.yml
-    openlst_openlst_demod.block.yml
-    openlst_raw_zmq_source.block.yml
-    openlst_raw_zmq_sink.block.yml DESTINATION share/gnuradio/grc/blocks
+    openlst_openlst_demod.block.yml DESTINATION share/gnuradio/grc/blocks
 )

@@ -18,22 +18,21 @@ class openlst_demod(gr.sync_block):
     """
     OpenLST Decoder/Deframer
 
-    This block decodes a raw RF packet (typically from a ZMQ socket)
-    in the form:
-    
-    
+    This block decodes a raw RF packet in the form:
+
+
     To an RF message:
 
         | Preamble | Sync Word(s) | Data Section |
-    
+
     Where "Data Section" contains:
 
         | Length (1 byte) | Flags (1 byte) | Seqnum (2 bytes) | Data (N bytes) | HWID (2 bytes) | CRC (2 bytes)
 
-    Into a message (typically for a ZMQ socket) in the form:
-        
+    Into a message in the form:
+
         | HWID (2 bytes) | Seqnum (2 bytes) | Data (N bytes) |
-    
+
     The Data Section may be 2:1 Forward-Error Correction (FEC) encoded, in which
     case bit errors can be corrected. PN-9 decoding is also supported.
 
@@ -59,7 +58,6 @@ class openlst_demod(gr.sync_block):
             out_sig=None,
         )
         # Messages are sent in raw form without a length or CRC
-        # generally this goes to a ZMQ socket
         self.message_port_register_out(pmt.intern('message'))
 
         self.preamble = [int(i) for i in "10101010" * preamble_bytes]

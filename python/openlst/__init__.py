@@ -22,6 +22,4 @@ except ModuleNotFoundError:
 # import any pure python here
 from .openlst_mod import openlst_mod
 from .openlst_demod import openlst_demod
-from .raw_zmq_source import raw_zmq_source
-from .raw_zmq_sink import raw_zmq_sink
 #

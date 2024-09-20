@@ -19,19 +19,18 @@ class openlst_mod(gr.sync_block):
     """
     OpenLST Encoder/Framer
 
-    This block encodes a raw data packet (typically from a ZMQ socket)
-    in the form:
-    
+    This block encodes a raw data packet in the form:
+
         | HWID (2 bytes) | Seqnum (2 bytes) | Data (N bytes) |
-    
+
     To an RF message:
 
         | Preamble | Sync Word(s) | Data Segment |
-    
+
     Where "Data Segment" contains:
 
         | Length (1 byte) | Flags (1 byte) | Seqnum (2 bytes) | Data (N bytes) | HWID (2 bytes) | CRC (2 bytes)
-    
+
     And may be encoded with whitening (PN-9 coding) and/or 2:1 Forward-Error Correction (FEC).
 
     It supports throttling of the output data rate for low bitrates. This avoids filling up the
@@ -56,7 +55,6 @@ class openlst_mod(gr.sync_block):
             out_sig=[np.uint8],
         )
         # Messages arrive in raw form without a length or CRC
-        # generally this comes from a ZMQ socket
         self.message_port_register_in(pmt.intern('message'))
         self.set_msg_handler(pmt.intern('message'), self.handle_msg)
 
@@ -89,7 +87,7 @@ class openlst_mod(gr.sync_block):
         preamble = bytearray(
             [0xaa] * self.preamble_bytes +  # preamble
             [self.sync_byte1, self.sync_byte0] * self.sync_words)  # sync word(s)
-        
+
         # Prefix with length byte and flags
         content = bytes(
             [len(raw) + 3] +  # length = raw + flags + checksum (2 bytes)

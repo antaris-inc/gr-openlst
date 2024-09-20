@@ -26,9 +26,7 @@ GR_PYTHON_INSTALL(
     fec.py
     whitening.py
     openlst_mod.py
-    openlst_demod.py
-    raw_zmq_source.py
-    raw_zmq_sink.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/openlst
+    openlst_demod.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/openlst
 )
 
 ########################################################################

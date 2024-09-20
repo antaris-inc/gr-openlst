@@ -17,18 +17,6 @@ Installing gnuradio, SDR drivers, and these modules can be quite an experience. 
 
 This module contains four blocks:
 
-### Raw ZMQ Source/Sink
-
-![Raw ZMQ Source](./img/zmq_source.png)
-![Raw ZMQ Sink](./img/zmq_sink.png)
-
-GNURadio already has [ZMQ](https://zeromq.org) source and sink blocks. However these blocks only support sending and receiving "PMT" formatted messages. The OpenLST `radio_mux` tool uses ZMQ sockets to send and receive messages in raw byte format. These Raw ZMQ blocks facilitate sending and receiving raw messages.
-
-The source block supports PULL and SUB sockets. A PULL socket can replace the `radio_mux` transmit PUSH socket (defaults to `ipc:///tpm/openlst_tx`).
-
-The sink block supports PUSH and PUB sockets. A PUB can replace the `radio_mux` receive PUB socket (defaults to `ipc:///tpm/openlst_rx`).
-
-
 ## OpenLST Frame+Encode/Deframe+Decode
 
 ![OpenLST Frame+Encode](./img/olst_frame_encode.png)
@@ -85,7 +73,7 @@ The sample project contains a flowgraph for a fully functional transceiver.
 
 ### Transmit Chain
 
-Messages arrive on a ZMQ PULL socket from `radio_mux`. Raw byte messages from `radio_mux` are encoded using the OpenLST Frame+Encode.
+Gnuradio messages arrive in a raw format, then encoded using the OpenLST Frame+Encode.
 
 The CC1110 supports several modulation types. OpenLST's default mode uses GFSK. The framed+encoded data is then modulated using the GFSK modulator block which outputs the modulated symbol at 4 samples/symbol. The modulated output is upsampled match the desired sample/symbol rate. At 1M samples/second with a bitrate of 7415.77bps, this is 134.848 samples/symbol.
 
@@ -104,7 +92,7 @@ The Symbol Sync block attempts to recover the clock and frequency of the demodul
 
 The resulting symbols are then demodulated with the GFSK Demod block and deocded with the OpenLST Decode+Deframe block.
 
-The raw bytes of the packet are sent back to `radio_mux` over a ZMQ socket.
+The raw bytes of the packet are output as a Gnuradio message.
 
 ## RF Packet Format
 
