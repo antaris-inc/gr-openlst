@@ -2,79 +2,67 @@
 # -*- coding: utf-8 -*-
 #
 # Copyright 2023 Robert Zimmerman.
+# Copyright 2024 Antaris Inc.
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
+
+import logging
 
 import pmt
 import numpy as np
 from gnuradio import gr
 
-from libopenlst import frame
+from satcom.openlst import client_packet_lib
+from satcom.openlst import space_packet_lib
+from satcom.openlst.fec import decode_fec_chunk
+from satcom.openlst.whitening import pn9, whiten
 
-from .fec import decode_fec_chunk
-from .whitening import pn9, whiten
-from .crc import crc16
+
+logger = logging.getLogger()
+
 
 class openlst_demod(gr.sync_block):
     """
     OpenLST Decoder/Deframer
 
-    This block decodes a raw RF packet in the form:
+    This block accepts bytes containing complete OpenLST space frames.
+    It translates each space frame into a corresponding client frame,
+    after removing any whitening/FEC.
 
+    Please see github.com/antaris-inc/python-satcom for documentation
+    as well as the library used to work with various OpenLST messages.
 
-    To an RF message:
+    The preamble_quality flag controls how many preamble bits must match
+    before attempting to decode a space packet.
 
-        | Preamble | Sync Word(s) | Data Section |
-
-    Where "Data Section" contains:
-
-        | Length (1 byte) | Flags (1 byte) | Seqnum (2 bytes) | Data (N bytes) | HWID (2 bytes) | CRC (2 bytes)
-
-    Into a message in the form:
-
-        | HWID (2 bytes) | Seqnum (2 bytes) | Data (N bytes) |
-
-    The Data Section may be 2:1 Forward-Error Correction (FEC) encoded, in which
-    case bit errors can be corrected. PN-9 decoding is also supported.
-
-    flags_mask and flags can be used to filter out messages, for example
-    to exclude messages from the ground transmitter in half-duplex mode.
     """
     def __init__(
         self,
-        preamble_bytes=4,
         preamble_quality=30,
-        sync_byte1=0xd3,
-        sync_byte0=0x91,
-        sync_words=2,
-        flags_mask=0x80,
-        flags=0,
         fec=True,
         whitening=True,
     ):
         gr.sync_block.__init__(
             self,
-            name='CC1110 Decode and Deframe',
+            name='OpenLST Decode and Deframe',
             in_sig=[np.uint8],
             out_sig=None,
         )
-        # Messages are sent in raw form without a length or CRC
         self.message_port_register_out(pmt.intern('message'))
 
-        self.preamble = [int(i) for i in "10101010" * preamble_bytes]
         self.preamble_quality = preamble_quality
-        self.sync_word = bytes([sync_byte1, sync_byte0] * sync_words)
-        self.flags_mask = flags_mask
-        self.flags = flags
         self.fec = fec
         self.whitening = whitening
-        self._socket = None
 
+        # map the preamble into a list of integers representing each bit
+        self.preamble_bits = [int(i) for i in ''.join([bin(byt)[2:] for byt in space_packet_lib.SPACE_PACKET_PREAMBLE])]
+
+        self._socket = None
         self._buff = []
         self._mode = 'search'
         self._length = 0
-        self._sync_bits = len(self.sync_word) * 8
+        self._sync_bits_len = len(space_packet_lib.SPACE_PACKET_ASM) * 8
 
     def work(self, input_items, output_items):
         # Each input byte is actually one LSB-encoded bit
@@ -95,9 +83,9 @@ class openlst_demod(gr.sync_block):
         # Search through buffer until viable preamble and full sync pattern is found
         if self._mode == 'search':
             # first check for preamble
-            while len(self._buff) >= len(self.preamble):
+            while len(self._buff) >= len(self.preamble_bits):
                 # identify number of preamble bits that match expected pattern
-                matched = sum(ex == ac for ex, ac in zip(self.preamble, self._buff))
+                matched = sum(ex == ac for ex, ac in zip(self.preamble_bits, self._buff))
 
                 # indicates a preamble match of required quality or better
                 if self._buff[0] == 1 and matched >= self.preamble_quality:
@@ -109,17 +97,17 @@ class openlst_demod(gr.sync_block):
 
             # reaching this point means we have matched enough of a preamble to check for sync words
 
-            syncbuff = self._buff[len(self.preamble):]
-            if len(syncbuff) >= self._sync_bits:
+            syncbuff = self._buff[len(self.preamble_bits):]
+            if len(syncbuff) >= self._sync_bits_len:
                 sw = bytes([
-                    bitcast(syncbuff[i:i + 8]) for i in range(0, self._sync_bits, 8)
+                    bitcast(syncbuff[i:i + 8]) for i in range(0, self._sync_bits_len, 8)
                 ])
-                if sw == self.sync_word:
+                if sw == space_packet_lib.SPACE_PACKET_ASM:
                     if self.fec:
                         self._mode = 'lengthfec'
                     else:
                         self._mode = 'length'
-                    self._buff = syncbuff[self._sync_bits:]
+                    self._buff = syncbuff[self._sync_bits_len:]
 
                 # no direct match, so will retrigger search process
                 else:
@@ -177,13 +165,11 @@ class openlst_demod(gr.sync_block):
                 # Remove whitening if necessary
                 if self.whitening:
                     data = whiten(data, self._pngen)
+
                 try:
-                    cf, flags = parse_client_frame(data)
-                except CRCError as c:
-                    pass
-                else:
-                    if flags & self.flags_mask == self.flags:
-                        self.send(cf)
+                    self.handle_space_packet(data)
+                except Exception:
+                    logger.exception('failed handling SpacePacket, discarding')
 
                 # All done - save any extra bits in the buffer and start looking
                 # for a new packet
@@ -210,48 +196,31 @@ class openlst_demod(gr.sync_block):
                 # Full packet is here
                 data = self._fecbuff[:self._length]
                 try:
-                    cf, flags = parse_client_frame(data)
-                except CRCError as c:
-                    pass
-                else:
-                    if flags & self.flags_mask == self.flags:
-                        self.send(cf)
+                    self.handle_space_packet(data)
+                except Exception as exc:
+                    logger.exception('failed handling SpacePacket, discarding')
+
                 self._mode = 'search'
 
-    def send(self, frm: frame.ClientFrame):
-        pkt = frm.to_bytearray()
-        pkt_pmt = pmt.init_u8vector(len(pkt), list(pkt))
-        self.message_port_pub(pmt.intern('message'), pkt_pmt)
+    def handle_space_packet(self, data: bytearray):
+        sp = space_packet_lib.SpacePacket.from_bytes(bytes([self._length]) + data)
+        if sp.err():
+            raise ValueError(f'SpacePacket validation error: {sp.err()}')
 
+        cp = client_packet_lib.ClientPacket(
+            header=client_packet_lib.ClientPacketHeader(
+                sequence_number=sp.header.sequence_number,
+                destination=sp.header.destination,
+                command_number=sp.header.command_number,
+                hardware_id=sp.footer.hardware_id,
+            ),
+            data=sp.data,
+        )
+        output_b = cp.to_bytes()
 
-class CRCError(Exception):
-    def __init__(self, expected, actual):
-        self.expected = expected
-        self.actual = actual
+        output_pmt = pmt.init_u8vector(len(output_b), list(output_b))
+        self.message_port_pub(pmt.intern('message'), output_pmt)
 
-    def __str__(self):
-        return f"CRCError: Expected {self.expected:04x} got {self.actual:04x}"
-
-
-def parse_client_frame(raw: bytes):
-    """Convert an OpenLST space frame (sans length field) to a client frame"""
-    want_checksum = crc16(bytes([len(raw)]) + raw[:-2])
-
-    buf = bytearray(raw)
-    flags, buf = buf[0], buf[1:]
-
-    cf = frame.ClientFrame()
-    cf.sequence_number = frame.pop_short(buf)
-    cf.destination = frame.pop_uchar(buf)
-    cf.command_number = frame.pop_uchar(buf)
-    cf.message, buf = buf[:len(buf) - 4], buf[-4:]
-    cf.hardware_id = frame.pop_short(buf)
-
-    got_checksum = frame.pop_short(buf)
-    if got_checksum != want_checksum:
-        raise CRCError(want_checksum, got_checksum)
-
-    return cf, flags
 
 def bitcast(bitlist):
     """convert a list of bits to a byte/bytes"""

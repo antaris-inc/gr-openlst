@@ -1,6 +1,0 @@
-[project]
-name = "libopenlst"
-version = "0.0.0"
-dependencies = [
-	"pydantic"
-]
