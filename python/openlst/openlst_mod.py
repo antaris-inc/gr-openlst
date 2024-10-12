@@ -9,6 +9,7 @@
 import pmt
 import time
 import numpy as np
+import logging as logger
 from gnuradio import gr
 
 from satcom.openlst import client_packet_lib
