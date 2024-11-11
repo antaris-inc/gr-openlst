@@ -39,6 +39,7 @@ class openlst_mod(gr.sync_block):
     """
     def __init__(
             self,
+            client_format,
             fec=True,
             whitening=True,
             bitrate=7415.77,
@@ -56,6 +57,7 @@ class openlst_mod(gr.sync_block):
 
         self.fec = fec
         self.whitening = whitening
+        self.client_format = client_format
 
         self._msg_buffer = []
         self._partial = False
@@ -74,30 +76,35 @@ class openlst_mod(gr.sync_block):
     def handle_msg(self, msg):
         input_b = bytes(pmt.to_python(msg))
 
-        try:
-            cp = client_packet_lib.ClientPacket.from_bytes(input_b)
-        except Exception:
-            logger.exception('failed parsing client packet from input message, discarding')
-            return
+        if self.client_format == 'CLIENT_PACKET':
+            try:
+                cp = client_packet_lib.ClientPacket.from_bytes(input_b)
+            except Exception:
+                logger.exception('failed parsing client packet from input message, discarding')
+                return
 
-        if cp.err():
-            logger.error(f'ClientPacket validation error: {cp.err()}')
-            return
+            if cp.err():
+                logger.error(f'ClientPacket validation error: {cp.err()}')
+                return
 
-        sp = space_packet_lib.SpacePacket(
-            header=space_packet_lib.SpacePacketHeader(
-                sequence_number=cp.header.sequence_number,
-                destination=cp.header.destination,
-                command_number=cp.header.command_number
-            ),
-            data=cp.data,
-            footer=space_packet_lib.SpacePacketFooter(
-                hardware_id=cp.header.hardware_id,
-            ),
-        )
+            sp = space_packet_lib.SpacePacket(
+                header=space_packet_lib.SpacePacketHeader(
+                    sequence_number=cp.header.sequence_number,
+                    destination=cp.header.destination,
+                    command_number=cp.header.command_number
+                ),
+                data=cp.data,
+                footer=space_packet_lib.SpacePacketFooter(
+                    hardware_id=cp.header.hardware_id,
+                ),
+            )
 
-        # NOTE(bcwaldon): explicitly skipping checking sp.err as we assume
-        # that the client packet will result in valid input to space packet.
+        elif self.client_format == 'RAW':
+            sp = space_packet_lib.SpacePacket(
+                data=input_b,
+            )
+        else:
+            raise ValueError('invalid client_format')
 
         output_b = sp.to_bytes()
 
