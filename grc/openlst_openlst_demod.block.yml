@@ -4,7 +4,7 @@ category: '[openlst]'
 
 templates:
   imports: from gnuradio import openlst
-  make: openlst.openlst_demod(preamble_quality=${preamble_quality}, fec=${fec}, whitening=${whitening})
+  make: openlst.openlst_demod(client_format=${client_format}, preamble_quality=${preamble_quality}, fec=${fec}, whitening=${whitening})
 
 parameters:
 - id: preamble_quality
@@ -19,6 +19,12 @@ parameters:
   label: Enable data whitening
   dtype: bool
   default: true
+- id: client_format
+  label: Client message format
+  dtype: enum
+  options: [ "'CLIENT_PACKET'", "'RAW'" ]
+  option_labels: [ CLIENT_PACKET, RAW ]
+  default: "'CLIENT_PACKET'"
 
 inputs:
 - label: in

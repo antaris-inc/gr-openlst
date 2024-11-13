@@ -39,6 +39,7 @@ class openlst_demod(gr.sync_block):
     """
     def __init__(
         self,
+        client_format,
         preamble_quality=30,
         fec=True,
         whitening=True,
@@ -54,6 +55,7 @@ class openlst_demod(gr.sync_block):
         self.preamble_quality = preamble_quality
         self.fec = fec
         self.whitening = whitening
+        self.client_format = client_format
 
         # map the preamble into a list of integers representing each bit
         self.preamble_bits = [int(i) for i in ''.join([bin(byt)[2:] for byt in space_packet_lib.SPACE_PACKET_PREAMBLE])]
@@ -207,16 +209,21 @@ class openlst_demod(gr.sync_block):
         if sp.err():
             raise ValueError(f'SpacePacket validation error: {sp.err()}')
 
-        cp = client_packet_lib.ClientPacket(
-            header=client_packet_lib.ClientPacketHeader(
-                sequence_number=sp.header.sequence_number,
-                destination=sp.header.destination,
-                command_number=sp.header.command_number,
-                hardware_id=sp.footer.hardware_id,
-            ),
-            data=sp.data,
-        )
-        output_b = cp.to_bytes()
+        if self.client_format == 'CLIENT_PACKET':
+            cp = client_packet_lib.ClientPacket(
+                header=client_packet_lib.ClientPacketHeader(
+                    sequence_number=sp.header.sequence_number,
+                    destination=sp.header.destination,
+                    command_number=sp.header.command_number,
+                    hardware_id=sp.footer.hardware_id,
+                ),
+                data=sp.data,
+            )
+            output_b = cp.to_bytes()
+        elif self.client_format == 'RAW':
+            output_b = sp.data
+        else:
+            raise ValueError('invalid client_format')
 
         output_pmt = pmt.init_u8vector(len(output_b), list(output_b))
         self.message_port_pub(pmt.intern('message'), output_pmt)
