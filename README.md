@@ -38,7 +38,7 @@ For the decoder, there are additional parameters:
 
 ## Example Flowgraph
 
-A sample flowgraph will be included in a future update.
+A sample flowgraph demonstrating the downlink path is available in the examples/ directory: [openlst_downlink.grc](./examples/openlst_downlink.grc).
 
 ## Forward-Error Correction (FEC)
 

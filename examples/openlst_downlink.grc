@@ -1,0 +1,278 @@
+options:
+  parameters:
+    author: ''
+    catch_exceptions: 'True'
+    category: '[GRC Hier Blocks]'
+    cmake_opt: ''
+    comment: ''
+    copyright: ''
+    description: ''
+    gen_cmake: 'On'
+    gen_linking: dynamic
+    generate_options: no_gui
+    hier_block_src_path: '.:'
+    id: openlst_downlink
+    max_nouts: '0'
+    output_language: python
+    placement: (0,0)
+    qt_qss_theme: ''
+    realtime_scheduling: ''
+    run: 'True'
+    run_command: '{python} -u {filename}'
+    run_options: run
+    sizing_mode: fixed
+    thread_safe_setters: ''
+    title: Not titled yet
+    window_size: (1000,1000)
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [8, 8]
+    rotation: 0
+    state: enabled
+
+blocks:
+- name: bit_rate
+  id: variable
+  parameters:
+    comment: ''
+    value: '7415.77'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [576, 12.0]
+    rotation: 0
+    state: enabled
+- name: resamp_rate
+  id: variable
+  parameters:
+    comment: ''
+    value: '4'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [464, 12.0]
+    rotation: 0
+    state: enabled
+- name: samp_per_sym
+  id: variable
+  parameters:
+    comment: ''
+    value: samp_rate/bit_rate
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [344, 12.0]
+    rotation: 0
+    state: enabled
+- name: samp_rate
+  id: variable
+  parameters:
+    comment: ''
+    value: 250e3
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [240, 12.0]
+    rotation: 0
+    state: enabled
+- name: blocks_message_debug_0
+  id: blocks_message_debug
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    en_uvec: 'True'
+    log_level: info
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [144, 376.0]
+    rotation: 180
+    state: true
+- name: digital_gfsk_demod_0
+  id: digital_gfsk_demod
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    freq_error: '0.0'
+    gain_mu: '0.175'
+    log: 'False'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    mu: '0.5'
+    omega_relative_limit: '0.005'
+    samples_per_symbol: resamp_rate
+    sensitivity: '1.0'
+    verbose: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [832, 388.0]
+    rotation: 180
+    state: true
+- name: digital_symbol_sync_xx_0
+  id: digital_symbol_sync_xx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    constellation: digital.constellation_bpsk().base()
+    damping: '1.0'
+    loop_bw: '0.045'
+    max_dev: '1.5'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    nfilters: '128'
+    osps: resamp_rate
+    pfb_mf_taps: '[]'
+    resamp_type: digital.IR_MMSE_8TAP
+    sps: resamp_rate
+    ted_gain: '1'
+    ted_type: digital.TED_GARDNER
+    type: cc
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [1080, 364.0]
+    rotation: 180
+    state: enabled
+- name: downlink_freq
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: ''
+    short_id: ''
+    type: intx
+    value: '400200000'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [360, 116.0]
+    rotation: 0
+    state: true
+- name: downlink_gain
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: ''
+    short_id: ''
+    type: intx
+    value: '40'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [488, 116.0]
+    rotation: 0
+    state: true
+- name: low_pass_filter_0
+  id: low_pass_filter
+  parameters:
+    affinity: ''
+    alias: ''
+    beta: '6.76'
+    comment: ''
+    cutoff_freq: 50e3
+    decim: '1'
+    gain: '1'
+    interp: '1'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    samp_rate: samp_rate
+    type: fir_filter_ccf
+    width: 1e3
+    win: window.WIN_HAMMING
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [1672, 340.0]
+    rotation: 180
+    state: true
+- name: mmse_resampler_xx_0_0
+  id: mmse_resampler_xx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    phase_shift: '0'
+    resamp_ratio: samp_per_sym/resamp_rate
+    type: complex
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [1384, 392.0]
+    rotation: 180
+    state: enabled
+- name: openlst_openlst_demod_0
+  id: openlst_openlst_demod
+  parameters:
+    affinity: ''
+    alias: ''
+    client_format: '''CLIENT_PACKET'''
+    comment: ''
+    fec: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    preamble_quality: '30'
+    whitening: 'True'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [520, 404.0]
+    rotation: 180
+    state: true
+- name: soapy_rtlsdr_source_0
+  id: soapy_rtlsdr_source
+  parameters:
+    affinity: ''
+    agc: 'False'
+    alias: ''
+    bias: 'False'
+    center_freq: downlink_freq
+    comment: ''
+    dev_args: ''
+    freq_correction: '0'
+    gain: downlink_gain
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    samp_rate: samp_rate
+    type: fc32
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [1872, 380.0]
+    rotation: 180
+    state: true
+
+connections:
+- [digital_gfsk_demod_0, '0', openlst_openlst_demod_0, '0']
+- [digital_symbol_sync_xx_0, '0', digital_gfsk_demod_0, '0']
+- [low_pass_filter_0, '0', mmse_resampler_xx_0_0, '0']
+- [mmse_resampler_xx_0_0, '0', digital_symbol_sync_xx_0, '0']
+- [openlst_openlst_demod_0, message, blocks_message_debug_0, print]
+- [soapy_rtlsdr_source_0, '0', low_pass_filter_0, '0']
+
+metadata:
+  file_format: 1
+  grc_version: 3.10.7.0
