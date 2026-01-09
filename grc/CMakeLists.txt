@@ -8,5 +8,6 @@
 
 install(FILES
     openlst_openlst_mod.block.yml
+    openlst_openlst_mod_tagged.block.yml
     openlst_openlst_demod.block.yml DESTINATION share/gnuradio/grc/blocks
 )

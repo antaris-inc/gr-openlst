@@ -23,6 +23,7 @@ GR_PYTHON_INSTALL(
     FILES
     __init__.py
     openlst_mod.py
+    openlst_mod_tagged.py
     openlst_demod.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/openlst
 )
 
