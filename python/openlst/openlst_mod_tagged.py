@@ -70,7 +70,7 @@ class openlst_mod_tagged(gr.sync_block):
         self.padding_bytes = padding_bytes
         
         # Output Scaling Calculation:
-        self.output_scaling = 8.0 * samples_per_symbol * resample_ratio
+        self.output_scaling = 8.0 * samples_per_symbol / resample_ratio
 
         self._msg_buffer = []
 
