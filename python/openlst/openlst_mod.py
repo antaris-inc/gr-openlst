@@ -143,10 +143,10 @@ class openlst_mod(gr.sync_block):
             logger.info(f'[mod] message encoded #{self.messages_encoded}: {len(output_b)} bytes, queue_depth={len(self._msg_buffer)}')
             self.message_port_pub(pmt.intern('debug'), pmt.to_pmt({
                 'event': 'encoded',
-                'msg_num': self.messages_encoded,
-                'input_bytes': len(input_b),
-                'output_bytes': len(output_b),
-                'queue_depth': len(self._msg_buffer),
+                'msg_num': int(self.messages_encoded),
+                'input_bytes': int(len(input_b)),
+                'output_bytes': int(len(output_b)),
+                'queue_depth': int(len(self._msg_buffer)),
             }))
 
     def work(self, input_items, output_items):

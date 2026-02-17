@@ -152,11 +152,11 @@ class openlst_mod_tagged(gr.sync_block):
             logger.info(f'[mod_tagged] message encoded #{self.messages_encoded}: {len(output_b)} bytes, tag_samples={tag_samples}, queue_depth={len(self._msg_buffer)}')
             self.message_port_pub(pmt.intern('debug'), pmt.to_pmt({
                 'event': 'encoded',
-                'msg_num': self.messages_encoded,
-                'input_bytes': len(input_b),
-                'output_bytes': len(output_b),
-                'tag_samples': tag_samples,
-                'queue_depth': len(self._msg_buffer),
+                'msg_num': int(self.messages_encoded),
+                'input_bytes': int(len(input_b)),
+                'output_bytes': int(len(output_b)),
+                'tag_samples': int(tag_samples),
+                'queue_depth': int(len(self._msg_buffer)),
             }))
 
     def work(self, input_items, output_items):
@@ -167,9 +167,7 @@ class openlst_mod_tagged(gr.sync_block):
             nwritten = self.nitems_written(0)
 
             # Calculate the burst length in SAMPLES for the USRP
-            # +1 accounts for the mmse_resampler producing one extra sample
-            # from its internal phase accumulator
-            final_length_samples = int(np.ceil(len(msg) * self.output_scaling)) + 1
+            final_length_samples = int(np.ceil(len(msg) * self.output_scaling))
 
             self.add_item_tag(
                 0,

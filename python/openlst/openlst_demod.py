@@ -127,8 +127,8 @@ class openlst_demod(gr.sync_block):
                         logger.info(f'[demod] sync word detected #{self.sync_detected}')
                         self.message_port_pub(pmt.intern('debug'), pmt.to_pmt({
                             'event': 'sync_detected',
-                            'sync_num': self.sync_detected,
-                            'preamble_quality': matched if 'matched' in dir() else 0,
+                            'sync_num': int(self.sync_detected),
+                            'preamble_quality': int(matched) if 'matched' in dir() else 0,
                         }))
                     if self.fec:
                         self._mode = 'lengthfec'
@@ -247,7 +247,7 @@ class openlst_demod(gr.sync_block):
                 self.message_port_pub(pmt.intern('debug'), pmt.to_pmt({
                     'event': 'decode_error',
                     'reason': str(sp.err()),
-                    'packets_dropped': self.packets_dropped,
+                    'packets_dropped': int(self.packets_dropped),
                 }))
             raise ValueError(f'SpacePacket validation error: {sp.err()}')
 
@@ -275,11 +275,11 @@ class openlst_demod(gr.sync_block):
             logger.info(f'[demod] packet decoded #{self.packets_decoded}: length={self._length}, seq={sp.header.sequence_number}, dst={sp.header.destination}, cmd={sp.header.command_number}')
             self.message_port_pub(pmt.intern('debug'), pmt.to_pmt({
                 'event': 'decoded',
-                'pkt_num': self.packets_decoded,
-                'length': self._length,
-                'seq': sp.header.sequence_number,
-                'dst': sp.header.destination,
-                'cmd': sp.header.command_number,
+                'pkt_num': int(self.packets_decoded),
+                'length': int(self._length),
+                'seq': int(sp.header.sequence_number),
+                'dst': int(sp.header.destination),
+                'cmd': int(sp.header.command_number),
             }))
 
 
