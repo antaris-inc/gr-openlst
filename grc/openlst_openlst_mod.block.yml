@@ -31,7 +31,9 @@ parameters:
   default: "'CLIENT_PACKET'"
 - id: debug
   label: Debug
-  dtype: bool
+  dtype: enum
+  options: ['True', 'False']
+  option_labels: ['Enabled', 'Disabled']
   default: 'False'
 
 inputs:
