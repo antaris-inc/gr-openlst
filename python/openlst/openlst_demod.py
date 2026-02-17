@@ -19,7 +19,7 @@ from satcom.openlst.fec import decode_fec_chunk
 from satcom.openlst.whitening import pn9, whiten
 
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class openlst_demod(gr.sync_block):
@@ -43,6 +43,7 @@ class openlst_demod(gr.sync_block):
         preamble_quality=30,
         fec=True,
         whitening=True,
+        debug=False,
     ):
         gr.sync_block.__init__(
             self,
@@ -52,10 +53,14 @@ class openlst_demod(gr.sync_block):
         )
         self.message_port_register_out(pmt.intern('message'))
 
+        # Debug/telemetry output port
+        self.message_port_register_out(pmt.intern('debug'))
+
         self.preamble_quality = preamble_quality
         self.fec = fec
         self.whitening = whitening
         self.client_format = client_format
+        self.debug = debug
 
         # map the preamble into a list of integers representing each bit
         self.preamble_bits = [int(i) for i in ''.join([bin(byt)[2:] for byt in space_packet_lib.SPACE_PACKET_PREAMBLE])]
@@ -66,9 +71,18 @@ class openlst_demod(gr.sync_block):
         self._length = 0
         self._sync_bits_len = len(space_packet_lib.SPACE_PACKET_ASM) * 8
 
+        # Telemetry counters
+        self.preambles_detected = 0
+        self.sync_detected = 0
+        self.sync_missed = 0
+        self.packets_decoded = 0
+        self.packets_dropped = 0
+        self.bytes_processed = 0
+
     def work(self, input_items, output_items):
         # Each input byte is actually one LSB-encoded bit
         self._buff.extend(input_items[0])
+        self.bytes_processed += len(input_items[0])
 
         # Work through as much of the buffer as possible, stopping
         # when it is clear no forward progress is being made
@@ -91,6 +105,9 @@ class openlst_demod(gr.sync_block):
 
                 # indicates a preamble match of required quality or better
                 if self._buff[0] == 1 and matched >= self.preamble_quality:
+                    self.preambles_detected += 1
+                    if self.debug:
+                        logger.info(f'[demod] preamble detected #{self.preambles_detected}: matched {matched}/{len(self.preamble_bits)} bits')
                     break
 
                 # continue searching through buffer
@@ -105,14 +122,27 @@ class openlst_demod(gr.sync_block):
                     bitcast(syncbuff[i:i + 8]) for i in range(0, self._sync_bits_len, 8)
                 ])
                 if sw == space_packet_lib.SPACE_PACKET_ASM:
+                    self.sync_detected += 1
+                    if self.debug:
+                        logger.info(f'[demod] sync word detected #{self.sync_detected}')
+                        self.message_port_pub(pmt.intern('debug'), pmt.to_pmt({
+                            'event': 'sync_detected',
+                            'sync_num': self.sync_detected,
+                            'preamble_quality': matched if 'matched' in dir() else 0,
+                        }))
                     if self.fec:
                         self._mode = 'lengthfec'
                     else:
                         self._mode = 'length'
                     self._buff = syncbuff[self._sync_bits_len:]
+                    if self.debug:
+                        logger.debug(f'[demod] state: search -> {self._mode}')
 
                 # no direct match, so will retrigger search process
                 else:
+                    self.sync_missed += 1
+                    if self.debug:
+                        logger.debug(f'[demod] sync missed (preamble matched but sync word failed), total missed: {self.sync_missed}')
                     self._buff.pop(0)
 
         # Wait for the length byte (potentially whitened)
@@ -125,6 +155,8 @@ class openlst_demod(gr.sync_block):
                 self._length = length_byte
                 self._mode = 'data'
                 self._buff = self._buff[8:]
+                if self.debug:
+                    logger.debug(f'[demod] state: length -> data, packet_length={self._length}')
 
         # Wait for two chunks of FECed content to decode the length byte
         elif self._mode == 'lengthfec':
@@ -159,6 +191,8 @@ class openlst_demod(gr.sync_block):
                 self._fecbuff = b[1:]
                 self._mode = 'datafec'
                 self._buff = self._buff[64:]
+                if self.debug:
+                    logger.debug(f'[demod] state: lengthfec -> datafec, packet_length={self._length}')
 
         elif self._mode == 'data':
             # In non-FEC mode we just decode one byte at a time
@@ -207,6 +241,14 @@ class openlst_demod(gr.sync_block):
     def handle_space_packet(self, data: bytearray):
         sp = space_packet_lib.SpacePacket.from_bytes(bytes([self._length]) + data)
         if sp.err():
+            self.packets_dropped += 1
+            if self.debug:
+                logger.warning(f'[demod] packet dropped #{self.packets_dropped}: {sp.err()}')
+                self.message_port_pub(pmt.intern('debug'), pmt.to_pmt({
+                    'event': 'decode_error',
+                    'reason': str(sp.err()),
+                    'packets_dropped': self.packets_dropped,
+                }))
             raise ValueError(f'SpacePacket validation error: {sp.err()}')
 
         if self.client_format == 'CLIENT_PACKET':
@@ -227,6 +269,18 @@ class openlst_demod(gr.sync_block):
 
         output_pmt = pmt.init_u8vector(len(output_b), list(output_b))
         self.message_port_pub(pmt.intern('message'), output_pmt)
+
+        self.packets_decoded += 1
+        if self.debug:
+            logger.info(f'[demod] packet decoded #{self.packets_decoded}: length={self._length}, seq={sp.header.sequence_number}, dst={sp.header.destination}, cmd={sp.header.command_number}')
+            self.message_port_pub(pmt.intern('debug'), pmt.to_pmt({
+                'event': 'decoded',
+                'pkt_num': self.packets_decoded,
+                'length': self._length,
+                'seq': sp.header.sequence_number,
+                'dst': sp.header.destination,
+                'cmd': sp.header.command_number,
+            }))
 
 
 def bitcast(bitlist):

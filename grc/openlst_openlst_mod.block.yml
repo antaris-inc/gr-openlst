@@ -4,7 +4,7 @@ category: '[openlst]'
 
 templates:
   imports: from gnuradio import openlst
-  make: openlst.openlst_mod(client_format=${client_format}, fec=${fec}, whitening=${whitening}, bitrate=${bitrate}, max_latency=${max_latency})
+  make: openlst.openlst_mod(client_format=${client_format}, fec=${fec}, whitening=${whitening}, bitrate=${bitrate}, max_latency=${max_latency}, debug=${debug})
 
 parameters:
 - id: fec
@@ -29,6 +29,10 @@ parameters:
   options: [ "'CLIENT_PACKET'", "'RAW'" ]
   option_labels: [ CLIENT_PACKET, RAW ]
   default: "'CLIENT_PACKET'"
+- id: debug
+  label: Debug
+  dtype: bool
+  default: 'False'
 
 inputs:
 - label: message
@@ -37,5 +41,8 @@ inputs:
 outputs:
 - label: out
   dtype: byte
+- label: debug
+  domain: message
+  optional: true
 
 file_format: 1
