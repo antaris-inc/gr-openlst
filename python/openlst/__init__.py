@@ -21,5 +21,6 @@ except ModuleNotFoundError:
 
 # import any pure python here
 from .openlst_mod import openlst_mod
+from .openlst_mod_tagged import openlst_mod_tagged
 from .openlst_demod import openlst_demod
 #

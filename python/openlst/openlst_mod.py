@@ -6,16 +6,20 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-import pmt
+import logging
 import time
+
+import pmt
 import numpy as np
-import logging as logger
 from gnuradio import gr
 
 from satcom.openlst import client_packet_lib
 from satcom.openlst import space_packet_lib
 from satcom.openlst.fec import encode_fec
 from satcom.openlst.whitening import whiten
+
+
+logger = logging.getLogger(__name__)
 
 
 class openlst_mod(gr.sync_block):
@@ -44,6 +48,7 @@ class openlst_mod(gr.sync_block):
             whitening=True,
             bitrate=7415.77,
             max_latency=0.1,
+            debug=False,
         ):
         gr.sync_block.__init__(
             self,
@@ -55,9 +60,13 @@ class openlst_mod(gr.sync_block):
         self.message_port_register_in(pmt.intern('message'))
         self.set_msg_handler(pmt.intern('message'), self.handle_msg)
 
+        # Debug/telemetry output port
+        self.message_port_register_out(pmt.intern('debug'))
+
         self.fec = fec
         self.whitening = whitening
         self.client_format = client_format
+        self.debug = debug
 
         self._msg_buffer = []
         self._partial = False
@@ -73,17 +82,28 @@ class openlst_mod(gr.sync_block):
         self._bytes_sent = 0
         self._last_buff_check = None
 
+        # Telemetry counters
+        self.messages_received = 0
+        self.messages_encoded = 0
+        self.messages_dropped = 0
+
     def handle_msg(self, msg):
         input_b = bytes(pmt.to_python(msg))
+        self.messages_received += 1
+
+        if self.debug:
+            logger.info(f'[mod] message received #{self.messages_received}: {len(input_b)} bytes, format={self.client_format}')
 
         if self.client_format == 'CLIENT_PACKET':
             try:
                 cp = client_packet_lib.ClientPacket.from_bytes(input_b)
             except Exception:
+                self.messages_dropped += 1
                 logger.exception('failed parsing client packet from input message, discarding')
                 return
 
             if cp.err():
+                self.messages_dropped += 1
                 logger.error(f'ClientPacket validation error: {cp.err()}')
                 return
 
@@ -117,6 +137,17 @@ class openlst_mod(gr.sync_block):
 
         # Queue encoded message for transmission
         self._msg_buffer.append((time.time(), list(output_b)))
+        self.messages_encoded += 1
+
+        if self.debug:
+            logger.info(f'[mod] message encoded #{self.messages_encoded}: {len(output_b)} bytes, queue_depth={len(self._msg_buffer)}')
+            self.message_port_pub(pmt.intern('debug'), pmt.to_pmt({
+                'event': 'encoded',
+                'msg_num': int(self.messages_encoded),
+                'input_bytes': int(len(input_b)),
+                'output_bytes': int(len(output_b)),
+                'queue_depth': int(len(self._msg_buffer)),
+            }))
 
     def work(self, input_items, output_items):
         if self._last_buff_check is None:
