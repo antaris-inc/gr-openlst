@@ -8,6 +8,7 @@
 #
 
 import logging
+import time
 
 import pmt
 import numpy as np
@@ -174,6 +175,17 @@ class openlst_mod_tagged(gr.sync_block):
                 nwritten,
                 self.length_tag_key,
                 pmt.from_long(final_length_samples)
+            )
+
+            # Attach a wall-clock timestamp to the first sample of each burst.
+            # Downstream doppler_correction blocks can use this via timesync_tag="tx_time"
+            # to resync their sample-to-time mapping for each burst, correcting for
+            # gaps between bursty transmissions where no samples flow.
+            self.add_item_tag(
+                0,
+                nwritten,
+                pmt.intern("tx_time"),
+                pmt.from_double(time.time())
             )
 
             # --- WRITING ---
